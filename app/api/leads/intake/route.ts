@@ -1,10 +1,8 @@
 import { NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
 import { LeadIntakeInputSchema } from "@/lib/schemas/lead-intelligence";
 import { getLeadIntelligenceProvider } from "@/lib/ai/provider";
 import { runLeadIntake } from "@/lib/leads/intake";
-
-const prisma = new PrismaClient();
+import { prisma } from "@/lib/prisma";
 
 export async function POST(request: Request) {
   const body = await request.json();
@@ -13,11 +11,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  const provider = getLeadIntelligenceProvider();
-  const result = await runLeadIntake(prisma, provider, parsed.data);
+  try {
+    const provider = getLeadIntelligenceProvider();
+    const result = await runLeadIntake(prisma, provider, parsed.data);
 
-  return NextResponse.json(
-    { lead: result.lead, extraction: result.extraction, draft: result.draft, safety: result.safety },
-    { status: 201 }
-  );
+    return NextResponse.json(
+      { lead: result.lead, extraction: result.extraction, draft: result.draft, safety: result.safety },
+      { status: 201 }
+    );
+  } catch (error) {
+    console.error("Lead intake failed", error);
+    return NextResponse.json({ error: "Failed to process lead intake" }, { status: 500 });
+  }
 }
