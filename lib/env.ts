@@ -8,7 +8,7 @@ const EnvSchema = z.object({
 
 export type Env = z.infer<typeof EnvSchema>;
 
-export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
+export function loadEnv(source: Partial<NodeJS.ProcessEnv> = process.env): Env {
   return EnvSchema.parse({
     DATABASE_URL: source.DATABASE_URL,
     DIRECT_URL: source.DIRECT_URL,
