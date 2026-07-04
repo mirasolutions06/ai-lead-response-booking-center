@@ -108,6 +108,8 @@ model Lead {
   pipelineEvents PipelineEvent[]
   notifications  Notification[]
   automationLogs AutomationLog[]
+
+  @@index([status])
 }
 
 model LeadExtraction {
@@ -148,6 +150,8 @@ model AvailabilitySlot {
   endsAt      DateTime
   status      SlotStatus   @default(open)
   appointment Appointment?
+
+  @@index([status, startsAt])
 }
 
 model Appointment {
@@ -169,6 +173,8 @@ model PipelineEvent {
   toStatus   LeadStatus
   actor      String
   createdAt  DateTime   @default(now())
+
+  @@index([leadId])
 }
 
 model Notification {
@@ -189,4 +195,6 @@ model AutomationLog {
   step      AutomationStep
   detail    String
   createdAt DateTime       @default(now())
+
+  @@index([leadId])
 }
