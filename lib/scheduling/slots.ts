@@ -49,6 +49,20 @@ export async function ensureSlotsGenerated(prisma: PrismaClient, businessId: str
   // Batched insert: relies on AvailabilitySlot.startsAt being @unique (see schema)
   // so re-running this on subsequent calls silently skips already-generated slots
   // instead of erroring or duplicating rows.
+  //
+  // Deliberately NOT a per-slot upsert loop (the more obvious Prisma pattern): against
+  // the real remote Supabase pooler, a sequential loop of ~50+ upserts took 24-50s+ and
+  // risked leaving a partial/orphaned set of rows if the request timed out mid-loop.
+  // A single batched createMany is one round trip and either fully succeeds or fully
+  // no-ops on a rerun — don't revert to a loop without re-benchmarking against prod-like
+  // network latency.
+  //
+  // KNOWN GAP: this function ignores Business.timezone and does all date/hour math in
+  // the server process's local timezone. Fine for the current single-business, same-
+  // machine dev/demo setup, but will produce wrong slot hours if deployed somewhere
+  // whose local timezone differs from the business's (e.g. a UTC-default host). Needs
+  // proper IANA-timezone-aware conversion (e.g. via Intl.DateTimeFormat) before this
+  // matters for a real deployment or multi-business support.
   if (candidates.length > 0) {
     await prisma.availabilitySlot.createMany({
       data: candidates,
