@@ -4,8 +4,11 @@ import { ensureSlotsGenerated } from "./slots";
 
 const prisma = new PrismaClient();
 let businessId: string;
+let preExistingSlotIds: string[] = [];
 
 beforeAll(async () => {
+  preExistingSlotIds = (await prisma.availabilitySlot.findMany({ select: { id: true } })).map((s) => s.id);
+
   const business = await prisma.business.create({
     data: { name: "Test Business", timezone: "America/Chicago" },
   });
@@ -13,7 +16,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await prisma.availabilitySlot.deleteMany({});
+  await prisma.availabilitySlot.deleteMany({ where: { id: { notIn: preExistingSlotIds } } });
   await prisma.businessHours.deleteMany({ where: { businessId } });
   await prisma.business.delete({ where: { id: businessId } });
 });
