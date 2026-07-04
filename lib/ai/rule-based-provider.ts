@@ -39,9 +39,9 @@ function extractPhone(text: string): string | null {
 }
 
 function detectService(text: string): string | null {
-  const lower = text.toLowerCase();
   for (const [keyword, service] of Object.entries(SERVICE_KEYWORDS)) {
-    if (lower.includes(keyword)) return service;
+    const pattern = new RegExp(`\\b${keyword}\\b`, "i");
+    if (pattern.test(text)) return service;
   }
   return null;
 }

@@ -43,4 +43,12 @@ describe("RuleBasedProvider", () => {
     expect(result.phone).toBeNull();
     expect(result.qualification_status).toBe("cold");
   });
+
+  it("does not false-positive match 'ac' inside unrelated words like 'vacation'", async () => {
+    const result = await provider.extractAndScore({
+      rawMessage: "Interested in a vacation rental property for next summer",
+      source: "website_form",
+    });
+    expect(result.requested_service).toBe("Real estate viewing");
+  });
 });
