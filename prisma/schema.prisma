@@ -1,0 +1,192 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum LeadSource {
+  website_form
+  sms
+  whatsapp
+  email
+  missed_call
+  quick_intake
+}
+
+enum LeadStatus {
+  new
+  qualified
+  booked
+  follow_up_needed
+  won
+  lost
+}
+
+enum QualificationStatus {
+  hot
+  warm
+  cold
+  spam
+}
+
+enum AiProviderKind {
+  openai
+  rule_based
+}
+
+enum FollowUpStatus {
+  drafted
+  approved
+}
+
+enum SlotStatus {
+  open
+  booked
+}
+
+enum AppointmentStatus {
+  booked
+  cancelled
+}
+
+enum NotificationChannel {
+  sms
+  email
+}
+
+enum NotificationStatus {
+  staged
+}
+
+enum AutomationStep {
+  lead_received
+  ai_extraction_completed
+  lead_scored
+  follow_up_drafted
+  human_approved
+  booking_staged
+  crm_updated
+  notification_staged
+}
+
+model Business {
+  id            String          @id @default(cuid())
+  name          String
+  timezone      String
+  createdAt     DateTime        @default(now())
+  businessHours BusinessHours[]
+}
+
+model BusinessHours {
+  id          String   @id @default(cuid())
+  business    Business @relation(fields: [businessId], references: [id])
+  businessId  String
+  dayOfWeek   Int
+  openMinute  Int
+  closeMinute Int
+
+  @@unique([businessId, dayOfWeek])
+}
+
+model Lead {
+  id         String     @id @default(cuid())
+  name       String?
+  email      String?
+  phone      String?
+  source     LeadSource
+  rawMessage String
+  status     LeadStatus @default(new)
+  createdAt  DateTime   @default(now())
+
+  extractions    LeadExtraction[]
+  followUpDrafts FollowUpDraft[]
+  appointments   Appointment[]
+  pipelineEvents PipelineEvent[]
+  notifications  Notification[]
+  automationLogs AutomationLog[]
+}
+
+model LeadExtraction {
+  id                       String              @id @default(cuid())
+  lead                     Lead                @relation(fields: [leadId], references: [id])
+  leadId                   String
+  requestedService         String?
+  urgency                  String?
+  location                 String?
+  budget                   String?
+  preferredTime            String?
+  buyingIntent             String?
+  leadScore                Int
+  qualificationStatus      QualificationStatus
+  recommendedNextAction    String
+  reasoning                String
+  missingContact           Boolean
+  unclearServiceOrLocation Boolean
+  isSpam                   Boolean
+  provider                 AiProviderKind
+  createdAt                DateTime            @default(now())
+}
+
+model FollowUpDraft {
+  id         String         @id @default(cuid())
+  lead       Lead           @relation(fields: [leadId], references: [id])
+  leadId     String
+  message    String
+  status     FollowUpStatus @default(drafted)
+  approvedAt DateTime?
+  approvedBy String?
+  createdAt  DateTime       @default(now())
+}
+
+model AvailabilitySlot {
+  id          String       @id @default(cuid())
+  startsAt    DateTime     @unique
+  endsAt      DateTime
+  status      SlotStatus   @default(open)
+  appointment Appointment?
+}
+
+model Appointment {
+  id               String            @id @default(cuid())
+  lead             Lead              @relation(fields: [leadId], references: [id])
+  leadId           String
+  slot             AvailabilitySlot  @relation(fields: [slotId], references: [id])
+  slotId           String            @unique
+  status           AppointmentStatus @default(booked)
+  confirmationCode String            @unique
+  createdAt        DateTime          @default(now())
+}
+
+model PipelineEvent {
+  id         String     @id @default(cuid())
+  lead       Lead       @relation(fields: [leadId], references: [id])
+  leadId     String
+  fromStatus LeadStatus
+  toStatus   LeadStatus
+  actor      String
+  createdAt  DateTime   @default(now())
+}
+
+model Notification {
+  id        String              @id @default(cuid())
+  lead      Lead                @relation(fields: [leadId], references: [id])
+  leadId    String
+  channel   NotificationChannel
+  subject   String?
+  body      String
+  status    NotificationStatus  @default(staged)
+  createdAt DateTime            @default(now())
+}
+
+model AutomationLog {
+  id        String         @id @default(cuid())
+  lead      Lead?          @relation(fields: [leadId], references: [id])
+  leadId    String?
+  step      AutomationStep
+  detail    String
+  createdAt DateTime       @default(now())
+}
