@@ -5,6 +5,7 @@ export async function getInboxLeads(prisma: PrismaClient) {
     orderBy: { createdAt: "desc" },
     include: {
       extractions: { orderBy: { createdAt: "desc" }, take: 1 },
+      followUpDrafts: { orderBy: { createdAt: "desc" }, take: 1 },
     },
   });
 }
