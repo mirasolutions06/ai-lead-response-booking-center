@@ -2,14 +2,15 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { LeadStatus, Prisma } from "@prisma/client";
+import { LeadStatus } from "@prisma/client";
 import { KanbanBoard, KanbanCard, KanbanCards, KanbanHeader, KanbanProvider, type DragEndEvent } from "@/components/ui/kanban";
 import { ScoreBadge } from "@/components/leads/score-badge";
 import { PIPELINE_STAGES, PIPELINE_STAGE_STYLES } from "@/lib/design/pipeline-stage";
 import { getStalenessLevel, STALENESS_TEXT_COLOR } from "@/lib/design/staleness";
 import { moveLeadStage } from "@/lib/actions/move-lead-stage";
+import type { getPipelineLeads } from "@/lib/leads/queries";
 
-type PipelineLead = Prisma.LeadGetPayload<{ include: { extractions: true } }>;
+type PipelineLead = Awaited<ReturnType<typeof getPipelineLeads>>[number];
 type KanbanItem = { id: string; name: string; column: LeadStatus; lead: PipelineLead };
 
 // Fixed locale/timeZone so server-rendered and client-hydrated output are

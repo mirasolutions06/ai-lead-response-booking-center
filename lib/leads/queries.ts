@@ -12,6 +12,15 @@ export async function getInboxLeads(prisma: PrismaClient) {
 
 export type InboxLead = Awaited<ReturnType<typeof getInboxLeads>>[number];
 
+export async function getPipelineLeads(prisma: PrismaClient) {
+  return prisma.lead.findMany({
+    orderBy: { createdAt: "desc" },
+    include: {
+      extractions: { orderBy: { createdAt: "desc" }, take: 1 },
+    },
+  });
+}
+
 export async function getInboxMetrics(prisma: PrismaClient) {
   const startOfToday = new Date();
   startOfToday.setHours(0, 0, 0, 0);

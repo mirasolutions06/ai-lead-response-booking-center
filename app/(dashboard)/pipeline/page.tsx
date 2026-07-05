@@ -1,11 +1,9 @@
 import { prisma } from "@/lib/prisma";
+import { getPipelineLeads } from "@/lib/leads/queries";
 import { PipelineClient } from "./pipeline-client";
 
 export default async function PipelinePage() {
-  const leads = await prisma.lead.findMany({
-    include: { extractions: { orderBy: { createdAt: "desc" }, take: 1 } },
-    orderBy: { createdAt: "desc" },
-  });
+  const leads = await getPipelineLeads(prisma);
 
   return (
     <div className="flex h-full flex-col">

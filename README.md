@@ -38,3 +38,4 @@ Known UI-layer gaps, carried forward deliberately:
 - No dark mode (architecture supports it later; not built).
 - Lead Detail uses component state, not a dedicated route — no shareable per-lead URL yet.
 - The standalone public `/intake` embeddable form (as opposed to the in-dashboard Quick Intake) isn't built — Quick Intake covers the demo need for now.
+- The "Edit" button next to a lead's draft follow-up is not wired to anything yet — approve or manually adjust the draft's wording before approving for now.

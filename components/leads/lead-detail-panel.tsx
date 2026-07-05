@@ -23,6 +23,7 @@ export function LeadDetailPanel({
 }) {
   const router = useRouter();
   const [isApproving, setIsApproving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const extraction = lead?.extractions[0];
 
   return (
@@ -60,6 +61,10 @@ export function LeadDetailPanel({
               <Textarea defaultValue={lead.followUpDrafts[0]?.message ?? ""} rows={4} className="text-sm" />
             </div>
 
+            {error && (
+              <div className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
+            )}
+
             <div className="mt-4 flex gap-2">
               <Button
                 size="sm"
@@ -70,10 +75,13 @@ export function LeadDetailPanel({
                   const draftId = lead.followUpDrafts[0]?.id;
                   if (!draftId) return;
                   setIsApproving(true);
+                  setError(null);
                   try {
                     await approveFollowUp(draftId);
                     onOpenChange(false);
                     router.refresh();
+                  } catch {
+                    setError("Couldn't approve this follow-up — it may be missing contact info.");
                   } finally {
                     setIsApproving(false);
                   }
