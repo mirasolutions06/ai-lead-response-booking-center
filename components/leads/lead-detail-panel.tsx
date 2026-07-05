@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { ScoreBadge } from "@/components/leads/score-badge";
 import type { InboxLead } from "@/lib/leads/queries";
 import { approveFollowUp } from "@/lib/actions/approve-follow-up";
+import { moveLeadStage } from "@/lib/actions/move-lead-stage";
 
 const CLOSED_STAGES = new Set(["booked", "won", "lost"]);
 
@@ -23,6 +24,7 @@ export function LeadDetailPanel({
 }) {
   const router = useRouter();
   const [isApproving, setIsApproving] = useState(false);
+  const [isDismissing, setIsDismissing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const extraction = lead?.extractions[0];
 
@@ -92,6 +94,28 @@ export function LeadDetailPanel({
               <Button size="sm" variant="secondary">
                 Edit
               </Button>
+              {!CLOSED_STAGES.has(lead.status) && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={isApproving || isDismissing}
+                  onClick={async () => {
+                    setError(null);
+                    setIsDismissing(true);
+                    try {
+                      await moveLeadStage(lead.id, "lost");
+                      onOpenChange(false);
+                      router.refresh();
+                    } catch {
+                      setError("Couldn't dismiss this lead — try again.");
+                    } finally {
+                      setIsDismissing(false);
+                    }
+                  }}
+                >
+                  Dismiss
+                </Button>
+              )}
             </div>
 
             {(extraction.qualificationStatus === "hot" || extraction.qualificationStatus === "warm") &&
