@@ -97,7 +97,7 @@ export function LeadTable({ leads, onRowClick }: { leads: InboxLead[]; onRowClic
                   onClick={header.column.getToggleSortingHandler()}
                 >
                   {flexRender(header.column.columnDef.header, header.getContext())}
-                  {{ asc: " ↑", desc: " ↓" }[header.column.getIsSorted() as string] ?? ""}
+                  {header.column.getIsSorted() === "asc" ? " ↑" : header.column.getIsSorted() === "desc" ? " ↓" : ""}
                 </TableHead>
               ))}
             </TableRow>
