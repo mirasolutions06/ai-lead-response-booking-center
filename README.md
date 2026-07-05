@@ -20,10 +20,21 @@ Set `OPENAI_API_KEY` in `.env` to use real GPT-based extraction. Without it, a d
 
 ## What's built so far
 
-The real backend: database schema, AI provider abstraction (with automatic fallback on provider failure), the real lead intake pipeline (`POST /api/leads/intake`, backed by a shared Prisma client singleton with error handling), safety-flag logic, automation logging, and the scheduling slot generator. The dashboard UI (Lead Inbox, Lead Detail, Booking Panel, CRM Pipeline, Automation Logs, Quick Intake) is a separate follow-on plan.
+The real backend: database schema, AI provider abstraction (with automatic fallback on provider failure), the real lead intake pipeline (`POST /api/leads/intake`, backed by a shared Prisma client singleton with error handling), safety-flag logic, automation logging, and the scheduling slot generator. The dashboard UI (Lead Inbox, Lead Detail, Booking Panel, CRM Pipeline, Automation Logs, Quick Intake) is built — see the "Dashboard UI" section below.
 
 Known scope gaps carried forward intentionally (see `docs/superpowers/specs/2026-07-04-ai-lead-response-booking-center-design.md` and `docs/superpowers/plans/2026-07-04-foundation-backend.md` for full rationale):
 - No auth (single-tenant, single business record).
 - No real SMS/email dispatch — notifications are staged/logged, not sent.
 - `lib/scheduling/slots.ts` computes business hours in the server's local timezone, not `Business.timezone` — fine for local dev, will need proper IANA-timezone handling before a real multi-timezone deployment.
 - `lib/leads/intake.ts` writes several rows sequentially without a wrapping database transaction — a mid-pipeline failure after lead creation can leave a lead without a full extraction/draft. Acceptable for now; worth revisiting before production traffic.
+
+## Dashboard UI
+
+All six screens are built: Lead Inbox (with hero metrics), Lead Detail (slide-over panel), Booking Panel, CRM Pipeline (drag-and-drop kanban), Automation Logs (live-polling feed), and Quick Intake. Three Server Actions gate every mutation: `approveFollowUp`, `bookAppointment`, `moveLeadStage` — none of them bypassable from the UI.
+
+Run `npx prisma db seed` on a fresh database to populate every screen with realistic demo data (7 leads spread across every CRM stage, one booked) before recording a demo — the seed script is idempotent and skips lead creation if leads already exist.
+
+Known UI-layer gaps, carried forward deliberately:
+- No dark mode (architecture supports it later; not built).
+- Lead Detail uses component state, not a dedicated route — no shareable per-lead URL yet.
+- The standalone public `/intake` embeddable form (as opposed to the in-dashboard Quick Intake) isn't built — Quick Intake covers the demo need for now.
