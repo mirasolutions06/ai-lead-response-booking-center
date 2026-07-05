@@ -2,12 +2,15 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { ScoreBadge } from "@/components/leads/score-badge";
 import type { InboxLead } from "@/lib/leads/queries";
 import { approveFollowUp } from "@/lib/actions/approve-follow-up";
+
+const CLOSED_STAGES = new Set(["booked", "won", "lost"]);
 
 export function LeadDetailPanel({
   lead,
@@ -19,6 +22,7 @@ export function LeadDetailPanel({
   onOpenChange: (open: boolean) => void;
 }) {
   const router = useRouter();
+  const [isApproving, setIsApproving] = useState(false);
   const extraction = lead?.extractions[0];
 
   return (
@@ -59,13 +63,19 @@ export function LeadDetailPanel({
             <div className="mt-4 flex gap-2">
               <Button
                 size="sm"
-                disabled={lead.followUpDrafts[0]?.status === "approved"}
+                disabled={
+                  lead.followUpDrafts[0]?.status === "approved" || extraction.missingContact || isApproving
+                }
                 onClick={async () => {
                   const draftId = lead.followUpDrafts[0]?.id;
-                  if (draftId) {
+                  if (!draftId) return;
+                  setIsApproving(true);
+                  try {
                     await approveFollowUp(draftId);
                     onOpenChange(false);
                     router.refresh();
+                  } finally {
+                    setIsApproving(false);
                   }
                 }}
               >
@@ -77,7 +87,7 @@ export function LeadDetailPanel({
             </div>
 
             {(extraction.qualificationStatus === "hot" || extraction.qualificationStatus === "warm") &&
-              lead.status !== "booked" && (
+              !CLOSED_STAGES.has(lead.status) && (
                 <Link
                   href={`/booking?leadId=${lead.id}`}
                   className="mt-3 inline-block text-xs font-medium text-blue-600 hover:underline"
