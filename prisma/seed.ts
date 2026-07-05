@@ -47,9 +47,10 @@ async function main() {
   await approveFollowUp(hvacLead.draft.id);
   const freshSlots = await ensureSlotsGenerated(prisma, business.id);
   const openSlot = freshSlots.find((s) => s.status === "open");
-  if (openSlot) {
-    await bookAppointment(hvacLead.lead.id, openSlot.id);
+  if (!openSlot) {
+    throw new Error("No open slots available to book the HVAC demo appointment — check ensureSlotsGenerated output.");
   }
+  await bookAppointment(hvacLead.lead.id, openSlot.id);
 
   await moveLeadStage(dentalLead.lead.id, "qualified");
   await moveLeadStage(realEstateLead.lead.id, "qualified");
@@ -63,6 +64,9 @@ async function main() {
 main()
   .catch((e) => {
     console.error(e);
+    console.error(
+      "Partial seed data may exist — clear the leads table (and its dependent rows) before rerunning, since the existingLeadCount guard will otherwise skip lead creation."
+    );
     process.exit(1);
   })
   .finally(async () => {
