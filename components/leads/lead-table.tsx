@@ -14,6 +14,23 @@ import { ScoreBadge } from "@/components/leads/score-badge";
 import { StatusDot } from "@/components/leads/status-dot";
 import type { InboxLead } from "@/lib/leads/queries";
 
+// Fixed locale/timeZone so server-rendered and client-hydrated output are
+// byte-identical regardless of the host machine's or browser's own locale —
+// toLocaleString() with no explicit options can differ between server and
+// client, which React reports as a hydration mismatch.
+function formatReceivedAt(date: Date): string {
+  return new Date(date).toLocaleString("en-US", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+    timeZone: "UTC",
+  });
+}
+
 export function LeadTable({ leads, onRowClick }: { leads: InboxLead[]; onRowClick: (leadId: string) => void }) {
   const [sorting, setSorting] = useState<SortingState>([{ id: "createdAt", desc: true }]);
 
@@ -62,7 +79,7 @@ export function LeadTable({ leads, onRowClick }: { leads: InboxLead[]; onRowClic
         header: "Received",
         accessorFn: (row) => row.createdAt,
         cell: ({ getValue }) => (
-          <span className="text-sm text-gray-400">{new Date(getValue<Date>()).toLocaleString()}</span>
+          <span className="text-sm text-gray-400">{formatReceivedAt(getValue<Date>())}</span>
         ),
       },
       {
