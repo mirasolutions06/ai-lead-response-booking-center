@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { fromZonedTime, toZonedTime } from "date-fns-tz";
 
 const DEFAULT_HOURS = [1, 2, 3, 4, 5].map((dayOfWeek) => ({
   dayOfWeek,
@@ -17,19 +18,43 @@ export async function ensureBusinessHours(prisma: PrismaClient, businessId: stri
   return prisma.businessHours.findMany({ where: { businessId } });
 }
 
+/**
+ * Build a "wall clock" date-time string (no offset) for a given calendar date
+ * (yyyy-mm-dd, itself already resolved in the business's timezone) plus a
+ * minute-of-day, then hand it to `fromZonedTime` so date-fns-tz resolves it
+ * against the business's IANA timezone — correctly accounting for DST.
+ */
+function zonedWallClockToUtc(dateKey: string, minuteOfDay: number, timeZone: string): Date {
+  const hours = Math.floor(minuteOfDay / 60);
+  const minutes = minuteOfDay % 60;
+  const wallClock = `${dateKey}T${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:00`;
+  return fromZonedTime(wallClock, timeZone);
+}
+
 export async function ensureSlotsGenerated(prisma: PrismaClient, businessId: string) {
+  const business = await prisma.business.findUniqueOrThrow({ where: { id: businessId } });
   const hours = await ensureBusinessHours(prisma, businessId);
   const hoursByDay = new Map(hours.map((h) => [h.dayOfWeek, h]));
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  // "Today" must be the business's own calendar day, not the server's — a server
+  // running in e.g. Europe/Paris can already be into tomorrow (or still in
+  // yesterday) relative to a business in America/Chicago.
+  const nowInBusinessTz = toZonedTime(new Date(), business.timezone);
+  const todayKeyBase = new Date(
+    Date.UTC(nowInBusinessTz.getFullYear(), nowInBusinessTz.getMonth(), nowInBusinessTz.getDate())
+  );
+  const todayKey = todayKeyBase.toISOString().slice(0, 10);
+  // Start of "today" in the business's own timezone, expressed as the UTC instant
+  // it corresponds to — used below to only return slots from today onward.
+  const startOfTodayUtc = zonedWallClockToUtc(todayKey, 0, business.timezone);
 
   const candidates: { startsAt: Date; endsAt: Date }[] = [];
 
   for (let dayOffset = 0; dayOffset < DAYS_AHEAD; dayOffset++) {
-    const date = new Date(today);
-    date.setDate(date.getDate() + dayOffset);
-    const dayHours = hoursByDay.get(date.getDay());
+    const date = new Date(todayKeyBase);
+    date.setUTCDate(date.getUTCDate() + dayOffset);
+    const dateKey = date.toISOString().slice(0, 10); // yyyy-mm-dd in the business's calendar
+    const dayHours = hoursByDay.get(date.getUTCDay());
     if (!dayHours) continue;
 
     for (
@@ -37,10 +62,13 @@ export async function ensureSlotsGenerated(prisma: PrismaClient, businessId: str
       minute + APPOINTMENT_LENGTH_MINUTES <= dayHours.closeMinute;
       minute += APPOINTMENT_LENGTH_MINUTES
     ) {
-      const startsAt = new Date(date);
-      startsAt.setMinutes(minute);
-      const endsAt = new Date(startsAt);
-      endsAt.setMinutes(startsAt.getMinutes() + APPOINTMENT_LENGTH_MINUTES);
+      const startsAt = zonedWallClockToUtc(dateKey, minute, business.timezone);
+      // A fixed 60-minute duration added directly to the correct UTC instant is
+      // always correct regardless of DST — no need to re-derive via another
+      // zoned conversion (and doing so could actually introduce a DST bug on
+      // the rare day the appointment window straddles a spring-forward/fall-back
+      // transition).
+      const endsAt = new Date(startsAt.getTime() + APPOINTMENT_LENGTH_MINUTES * 60_000);
 
       candidates.push({ startsAt, endsAt });
     }
@@ -56,13 +84,6 @@ export async function ensureSlotsGenerated(prisma: PrismaClient, businessId: str
   // A single batched createMany is one round trip and either fully succeeds or fully
   // no-ops on a rerun — don't revert to a loop without re-benchmarking against prod-like
   // network latency.
-  //
-  // KNOWN GAP: this function ignores Business.timezone and does all date/hour math in
-  // the server process's local timezone. Fine for the current single-business, same-
-  // machine dev/demo setup, but will produce wrong slot hours if deployed somewhere
-  // whose local timezone differs from the business's (e.g. a UTC-default host). Needs
-  // proper IANA-timezone-aware conversion (e.g. via Intl.DateTimeFormat) before this
-  // matters for a real deployment or multi-business support.
   if (candidates.length > 0) {
     await prisma.availabilitySlot.createMany({
       data: candidates,
@@ -71,7 +92,7 @@ export async function ensureSlotsGenerated(prisma: PrismaClient, businessId: str
   }
 
   return prisma.availabilitySlot.findMany({
-    where: { startsAt: { gte: today }, status: "open" },
+    where: { startsAt: { gte: startOfTodayUtc }, status: "open" },
     orderBy: { startsAt: "asc" },
   });
 }
