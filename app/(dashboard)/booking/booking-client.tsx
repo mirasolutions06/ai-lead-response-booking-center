@@ -42,6 +42,8 @@ export function BookingClient({
   const router = useRouter();
   const [selectedLeadId, setSelectedLeadId] = useState<string>(initialLeadId ?? leads[0]?.id ?? "");
   const [confirmation, setConfirmation] = useState<string | null>(null);
+  const [isBooking, setIsBooking] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const grouped = slots.reduce<Record<string, AvailabilitySlot[]>>((acc, slot) => {
     const day = formatSlotDay(slot.startsAt);
@@ -51,16 +53,33 @@ export function BookingClient({
   }, {});
 
   async function handleBook(slotId: string) {
-    if (!selectedLeadId) return;
-    const appointment = await bookAppointment(selectedLeadId, slotId);
-    setConfirmation(appointment.confirmationCode);
-    router.refresh();
+    if (!selectedLeadId || isBooking) return;
+    setIsBooking(true);
+    setError(null);
+    try {
+      const appointment = await bookAppointment(selectedLeadId, slotId);
+      setConfirmation(appointment.confirmationCode);
+      router.refresh();
+    } catch {
+      setError("That slot was just booked by someone else — pick another one.");
+      router.refresh();
+    } finally {
+      setIsBooking(false);
+    }
   }
 
   if (confirmation) {
     return (
       <div className="rounded-md bg-green-50 px-4 py-3 text-sm text-green-800">
         Booked! Confirmation code: <span className="font-bold">{confirmation}</span>
+      </div>
+    );
+  }
+
+  if (leads.length === 0) {
+    return (
+      <div className="rounded-md bg-gray-50 px-4 py-3 text-sm text-gray-500">
+        No bookable leads right now — every lead is already booked or closed.
       </div>
     );
   }
@@ -82,6 +101,10 @@ export function BookingClient({
         </select>
       </div>
 
+      {error && (
+        <div className="mb-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
+      )}
+
       {Object.entries(grouped).map(([day, daySlots]) => (
         <div key={day} className="mb-4">
           <div className="mb-1.5 text-xs font-semibold uppercase text-gray-400">{day}</div>
@@ -93,7 +116,7 @@ export function BookingClient({
                   key={slot.id}
                   size="sm"
                   variant="outline"
-                  disabled={!selectedLeadId}
+                  disabled={!selectedLeadId || isBooking}
                   onClick={() => handleBook(slot.id)}
                 >
                   {formatSlotTime(slot.startsAt)}
