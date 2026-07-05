@@ -71,7 +71,10 @@ export function LeadDetailPanel({
               <Button
                 size="sm"
                 disabled={
-                  lead.followUpDrafts[0]?.status === "approved" || extraction.missingContact || isApproving
+                  lead.followUpDrafts[0]?.status === "approved" ||
+                  extraction.missingContact ||
+                  isApproving ||
+                  isDismissing
                 }
                 onClick={async () => {
                   const draftId = lead.followUpDrafts[0]?.id;
