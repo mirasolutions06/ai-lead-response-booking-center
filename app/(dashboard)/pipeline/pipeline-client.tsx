@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { LeadStatus, Prisma } from "@prisma/client";
 import { KanbanBoard, KanbanCard, KanbanCards, KanbanHeader, KanbanProvider, type DragEndEvent } from "@/components/ui/kanban";
 import { ScoreBadge } from "@/components/leads/score-badge";
@@ -32,16 +32,29 @@ function formatCardTimestamp(date: Date): string {
 
 const COLUMNS = PIPELINE_STAGES.map((status) => ({ id: status, name: PIPELINE_STAGE_STYLES[status].label }));
 
+function leadsToItems(leads: PipelineLead[]): KanbanItem[] {
+  return leads.map((lead) => ({
+    id: lead.id,
+    name: lead.name ?? lead.phone ?? lead.email ?? "Unknown",
+    column: lead.status,
+    lead,
+  }));
+}
+
 export function PipelineClient({ leads }: { leads: PipelineLead[] }) {
   const router = useRouter();
-  const [items, setItems] = useState<KanbanItem[]>(
-    leads.map((lead) => ({
-      id: lead.id,
-      name: lead.name ?? lead.phone ?? lead.email ?? "Unknown",
-      column: lead.status,
-      lead,
-    }))
-  );
+  const [items, setItems] = useState<KanbanItem[]>(() => leadsToItems(leads));
+  const [error, setError] = useState<string | null>(null);
+
+  // router.refresh() re-executes the Server Component and streams new props
+  // in, but doesn't remount this client component — the useState initializer
+  // above only runs once, so without this effect, `items` would never pick
+  // up leads added/changed by anything other than this component's own
+  // optimistic drag update (a new Quick Intake lead, another tab, a failed
+  // move being corrected server-side, etc).
+  useEffect(() => {
+    setItems(leadsToItems(leads));
+  }, [leads]);
 
   function handleDragEnd(event: DragEndEvent) {
     const leadId = event.active.id as string;
@@ -55,18 +68,28 @@ export function PipelineClient({ leads }: { leads: PipelineLead[] }) {
     const original = leads.find((l) => l.id === leadId);
     if (!original || !targetColumn || original.status === targetColumn) return;
 
-    moveLeadStage(leadId, targetColumn).then(() => router.refresh());
+    setError(null);
+    moveLeadStage(leadId, targetColumn)
+      .then(() => router.refresh())
+      .catch(() => {
+        setError("Couldn't move that lead — refreshing to show the current state.");
+        router.refresh();
+      });
   }
 
   return (
-    <KanbanProvider
-      id="lead-pipeline"
-      columns={COLUMNS}
-      data={items}
-      onDataChange={setItems}
-      onDragEnd={handleDragEnd}
-      className="h-full"
-    >
+    <>
+      {error && (
+        <div className="mb-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
+      )}
+      <KanbanProvider
+        id="lead-pipeline"
+        columns={COLUMNS}
+        data={items}
+        onDataChange={setItems}
+        onDragEnd={handleDragEnd}
+        className="h-full"
+      >
       {(column) => (
         <KanbanBoard id={column.id} key={column.id}>
           <KanbanHeader>
@@ -98,6 +121,7 @@ export function PipelineClient({ leads }: { leads: PipelineLead[] }) {
           </KanbanCards>
         </KanbanBoard>
       )}
-    </KanbanProvider>
+      </KanbanProvider>
+    </>
   );
 }
