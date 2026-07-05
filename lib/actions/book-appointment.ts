@@ -28,6 +28,9 @@ export async function bookAppointment(leadId: string, slotId: string) {
 
     let notificationChannel: "sms" | "email" | null = null;
     if (lead.phone || lead.email) {
+      // Single-tenant assumption: picks whichever Business row exists first (no
+      // schema-level link from Lead/Appointment to Business yet). Needs a real
+      // businessId relationship before multi-business support.
       const business = await tx.business.findFirstOrThrow();
       const formattedTime = slot.startsAt.toLocaleString("en-US", {
         weekday: "long",

@@ -68,6 +68,16 @@ describe("bookAppointment", () => {
     expect(notifications).toHaveLength(1);
     expect(notifications[0].channel).toBe("sms");
     expect(notifications[0].body).toContain(appointment.confirmationCode);
+
+    const expectedFormattedTime = slot.startsAt.toLocaleString("en-US", {
+      weekday: "long",
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      timeZone: business.timezone,
+    });
+    expect(notifications[0].body).toContain(expectedFormattedTime);
   });
 
   it("throws if the slot is already booked", async () => {
