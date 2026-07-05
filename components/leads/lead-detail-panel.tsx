@@ -1,10 +1,13 @@
 "use client";
 
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { ScoreBadge } from "@/components/leads/score-badge";
 import type { InboxLead } from "@/lib/leads/queries";
+import { approveFollowUp } from "@/lib/actions/approve-follow-up";
 
 export function LeadDetailPanel({
   lead,
@@ -15,6 +18,7 @@ export function LeadDetailPanel({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const router = useRouter();
   const extraction = lead?.extractions[0];
 
   return (
@@ -53,11 +57,34 @@ export function LeadDetailPanel({
             </div>
 
             <div className="mt-4 flex gap-2">
-              <Button size="sm">Approve &amp; Send</Button>
+              <Button
+                size="sm"
+                disabled={lead.followUpDrafts[0]?.status === "approved"}
+                onClick={async () => {
+                  const draftId = lead.followUpDrafts[0]?.id;
+                  if (draftId) {
+                    await approveFollowUp(draftId);
+                    onOpenChange(false);
+                    router.refresh();
+                  }
+                }}
+              >
+                {lead.followUpDrafts[0]?.status === "approved" ? "Approved" : "Approve & Send"}
+              </Button>
               <Button size="sm" variant="secondary">
                 Edit
               </Button>
             </div>
+
+            {(extraction.qualificationStatus === "hot" || extraction.qualificationStatus === "warm") &&
+              lead.status !== "booked" && (
+                <Link
+                  href={`/booking?leadId=${lead.id}`}
+                  className="mt-3 inline-block text-xs font-medium text-blue-600 hover:underline"
+                >
+                  Suggest booking slots →
+                </Link>
+              )}
           </div>
         )}
       </SheetContent>
