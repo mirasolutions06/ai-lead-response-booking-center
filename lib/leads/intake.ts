@@ -44,46 +44,55 @@ export async function runLeadIntake(
 
   const safety = computeSafetyFlags(intelligence);
 
-  const extraction = await prisma.leadExtraction.create({
-    data: {
-      leadId: lead.id,
-      requestedService: intelligence.requested_service,
-      urgency: intelligence.urgency,
-      location: intelligence.location,
-      budget: intelligence.budget,
-      preferredTime: intelligence.preferred_time,
-      buyingIntent: intelligence.buying_intent,
-      leadScore: intelligence.lead_score,
-      qualificationStatus: intelligence.qualification_status,
-      recommendedNextAction: intelligence.recommended_next_action,
-      reasoning: intelligence.reasoning,
-      missingContact: safety.missingContact,
-      unclearServiceOrLocation: safety.unclearServiceOrLocation,
-      isSpam: safety.isSpam,
-      provider: usedProvider.kind,
-    },
-  });
+  // The three writes below are independent of each other (none depends on
+  // another's result — the draft message and lead update both derive purely
+  // from `intelligence`, computed above), so they're grouped into a single
+  // array-form transaction: either all three land, or none do. This closes
+  // the partial-failure window where a crash between writes used to leave a
+  // lead with an extraction but no follow-up draft (or vice versa). The
+  // initial Lead creation and the AI provider call above are deliberately
+  // left outside any transaction — see runLeadIntake's usage sites for why.
+  const [extraction, updatedLead, draft] = await prisma.$transaction([
+    prisma.leadExtraction.create({
+      data: {
+        leadId: lead.id,
+        requestedService: intelligence.requested_service,
+        urgency: intelligence.urgency,
+        location: intelligence.location,
+        budget: intelligence.budget,
+        preferredTime: intelligence.preferred_time,
+        buyingIntent: intelligence.buying_intent,
+        leadScore: intelligence.lead_score,
+        qualificationStatus: intelligence.qualification_status,
+        recommendedNextAction: intelligence.recommended_next_action,
+        reasoning: intelligence.reasoning,
+        missingContact: safety.missingContact,
+        unclearServiceOrLocation: safety.unclearServiceOrLocation,
+        isSpam: safety.isSpam,
+        provider: usedProvider.kind,
+      },
+    }),
+    prisma.lead.update({
+      where: { id: lead.id },
+      data: {
+        name: intelligence.name,
+        email: intelligence.email,
+        phone: intelligence.phone,
+      },
+    }),
+    prisma.followUpDraft.create({
+      data: {
+        leadId: lead.id,
+        message: intelligence.follow_up_message,
+      },
+    }),
+  ]);
+
   await logStep(prisma, { leadId: lead.id, step: "ai_extraction_completed", detail: extractionDetail });
   await logStep(prisma, {
     leadId: lead.id,
     step: "lead_scored",
     detail: `Score ${intelligence.lead_score}, qualification: ${intelligence.qualification_status}`,
-  });
-
-  const updatedLead = await prisma.lead.update({
-    where: { id: lead.id },
-    data: {
-      name: intelligence.name,
-      email: intelligence.email,
-      phone: intelligence.phone,
-    },
-  });
-
-  const draft = await prisma.followUpDraft.create({
-    data: {
-      leadId: lead.id,
-      message: intelligence.follow_up_message,
-    },
   });
   await logStep(prisma, { leadId: lead.id, step: "follow_up_drafted", detail: "Draft ready for human approval" });
 
