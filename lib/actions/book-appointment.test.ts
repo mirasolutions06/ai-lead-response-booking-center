@@ -5,6 +5,7 @@ import { ensureSlotsGenerated } from "@/lib/scheduling/slots";
 
 const prisma = new PrismaClient();
 const createdLeadIds: string[] = [];
+const bookedSlotIds: string[] = [];
 let businessId: string;
 
 afterEach(async () => {
@@ -14,6 +15,14 @@ afterEach(async () => {
     await prisma.lead.delete({ where: { id: leadId } });
   }
   createdLeadIds.length = 0;
+
+  // Booking a slot is a side effect independent of the lead it's for — reset
+  // it back to "open" too, otherwise every test run permanently consumes a
+  // real slot from the shared database.
+  for (const slotId of bookedSlotIds) {
+    await prisma.availabilitySlot.update({ where: { id: slotId }, data: { status: "open" } });
+  }
+  bookedSlotIds.length = 0;
 });
 
 describe("bookAppointment", () => {
@@ -25,6 +34,7 @@ describe("bookAppointment", () => {
     businessId = business.id;
     const slots = await ensureSlotsGenerated(prisma, businessId);
     const slot = slots[0];
+    bookedSlotIds.push(slot.id);
 
     const lead = await prisma.lead.create({ data: { source: "sms", rawMessage: "test" } });
     createdLeadIds.push(lead.id);
@@ -55,6 +65,7 @@ describe("bookAppointment", () => {
     const slots = await ensureSlotsGenerated(prisma, business.id);
     const slot = slots.find((s) => s.status === "open");
     if (!slot) throw new Error("test setup: no open slot available");
+    bookedSlotIds.push(slot.id);
 
     const leadA = await prisma.lead.create({ data: { source: "sms", rawMessage: "a" } });
     const leadB = await prisma.lead.create({ data: { source: "sms", rawMessage: "b" } });
