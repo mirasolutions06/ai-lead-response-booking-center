@@ -12,6 +12,7 @@ afterEach(async () => {
   for (const leadId of createdLeadIds) {
     await prisma.automationLog.deleteMany({ where: { leadId } });
     await prisma.appointment.deleteMany({ where: { leadId } });
+    await prisma.notification.deleteMany({ where: { leadId } });
     await prisma.lead.delete({ where: { id: leadId } });
   }
   createdLeadIds.length = 0;
@@ -36,7 +37,9 @@ describe("bookAppointment", () => {
     const slot = slots[0];
     bookedSlotIds.push(slot.id);
 
-    const lead = await prisma.lead.create({ data: { source: "sms", rawMessage: "test" } });
+    const lead = await prisma.lead.create({
+      data: { source: "sms", rawMessage: "test", phone: "555-1234" },
+    });
     createdLeadIds.push(lead.id);
 
     const appointment = await bookAppointment(lead.id, slot.id);
@@ -54,7 +57,17 @@ describe("bookAppointment", () => {
       where: { leadId: lead.id },
       orderBy: { createdAt: "asc" },
     });
-    expect(logs.map((l) => l.step)).toEqual(["human_approved", "booking_staged", "crm_updated"]);
+    expect(logs.map((l) => l.step)).toEqual([
+      "human_approved",
+      "booking_staged",
+      "notification_staged",
+      "crm_updated",
+    ]);
+
+    const notifications = await prisma.notification.findMany({ where: { leadId: lead.id } });
+    expect(notifications).toHaveLength(1);
+    expect(notifications[0].channel).toBe("sms");
+    expect(notifications[0].body).toContain(appointment.confirmationCode);
   });
 
   it("throws if the slot is already booked", async () => {
