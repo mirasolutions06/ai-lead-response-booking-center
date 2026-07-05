@@ -11,22 +11,30 @@ import type { InboxLead } from "@/lib/leads/queries";
 // byte-identical regardless of the host machine's or browser's own locale —
 // toLocaleString() with no explicit options can differ between server and
 // client, which React reports as a hydration mismatch (see formatReceivedAt
-// in components/leads/lead-table.tsx for the same pattern).
-function formatSlotDay(date: Date): string {
+// in components/leads/lead-table.tsx for the same pattern). timeZone is the
+// business's real IANA zone (e.g. "America/Chicago"), fetched server-side
+// from the Business row and passed down as a plain prop — not the browser's
+// own zone (which would vary per client and reintroduce the mismatch). Since
+// AvailabilitySlot.startsAt is now generated as the true UTC instant for the
+// business's local wall-clock time (see lib/scheduling/slots.ts), formatting
+// with the business's timezone here is what actually displays correctly;
+// this mirrors the same approach already used for notification text in
+// lib/actions/book-appointment.ts.
+function formatSlotDay(date: Date, timeZone: string): string {
   return new Date(date).toLocaleDateString("en-US", {
     weekday: "long",
     month: "short",
     day: "numeric",
-    timeZone: "UTC",
+    timeZone,
   });
 }
 
-function formatSlotTime(date: Date): string {
+function formatSlotTime(date: Date, timeZone: string): string {
   return new Date(date).toLocaleTimeString("en-US", {
     hour: "numeric",
     minute: "2-digit",
-    hour12: false,
-    timeZone: "UTC",
+    hour12: true,
+    timeZone,
   });
 }
 
@@ -34,10 +42,12 @@ export function BookingClient({
   slots,
   leads,
   initialLeadId,
+  businessTimezone,
 }: {
   slots: AvailabilitySlot[];
   leads: InboxLead[];
   initialLeadId?: string;
+  businessTimezone: string;
 }) {
   const router = useRouter();
   const [selectedLeadId, setSelectedLeadId] = useState<string>(initialLeadId ?? leads[0]?.id ?? "");
@@ -46,7 +56,7 @@ export function BookingClient({
   const [error, setError] = useState<string | null>(null);
 
   const grouped = slots.reduce<Record<string, AvailabilitySlot[]>>((acc, slot) => {
-    const day = formatSlotDay(slot.startsAt);
+    const day = formatSlotDay(slot.startsAt, businessTimezone);
     acc[day] = acc[day] ?? [];
     acc[day].push(slot);
     return acc;
@@ -119,7 +129,7 @@ export function BookingClient({
                   disabled={!selectedLeadId || isBooking}
                   onClick={() => handleBook(slot.id)}
                 >
-                  {formatSlotTime(slot.startsAt)}
+                  {formatSlotTime(slot.startsAt, businessTimezone)}
                 </Button>
               ))}
           </div>

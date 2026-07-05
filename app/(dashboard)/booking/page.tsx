@@ -27,7 +27,12 @@ export default async function BookingPage({
           Booking for {preselectedLead.name ?? preselectedLead.phone ?? preselectedLead.email}
         </p>
       )}
-      <BookingClient slots={slots} leads={bookableLeads} initialLeadId={preselectedLead?.id} />
+      <BookingClient
+        slots={slots}
+        leads={bookableLeads}
+        initialLeadId={preselectedLead?.id}
+        businessTimezone={business.timezone}
+      />
     </div>
   );
 }
