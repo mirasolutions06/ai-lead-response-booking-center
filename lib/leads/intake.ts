@@ -51,7 +51,10 @@ export async function runLeadIntake(
   // the partial-failure window where a crash between writes used to leave a
   // lead with an extraction but no follow-up draft (or vice versa). The
   // initial Lead creation and the AI provider call above are deliberately
-  // left outside any transaction — see runLeadIntake's usage sites for why.
+  // left outside this transaction: the AI call is a slow external request
+  // that shouldn't hold a DB transaction open, and persisting the Lead first
+  // ensures a "lead_received" record survives even if the AI call fails
+  // outright.
   const [extraction, updatedLead, draft] = await prisma.$transaction([
     prisma.leadExtraction.create({
       data: {
