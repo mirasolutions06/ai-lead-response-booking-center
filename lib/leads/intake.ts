@@ -42,7 +42,21 @@ export async function runLeadIntake(
     extractionDetail = `Provider: ${usedProvider.kind} (fallback after ${provider.kind} error: ${message})`;
   }
 
-  const safety = computeSafetyFlags(intelligence);
+  // Explicit, labeled contact fields (e.g. from a website form) take priority
+  // over whatever the AI extracted from the free-text message. Coalescing here
+  // (explicit-over-AI) produces the effective contact identity for this lead.
+  const contact = {
+    name: parsedInput.name ?? intelligence.name,
+    email: parsedInput.email ?? intelligence.email,
+    phone: parsedInput.phone ?? intelligence.phone,
+  };
+
+  // Compute safety from the MERGED contact, not the raw AI intelligence: a
+  // customer who typed their phone into the form but whose free text had no
+  // number must NOT be flagged `missingContact`. Spreading `contact` over
+  // `intelligence` overrides the email/phone fields that computeSafetyFlags
+  // inspects.
+  const safety = computeSafetyFlags({ ...intelligence, ...contact });
 
   // The three writes below are independent of each other (none depends on
   // another's result — the draft message and lead update both derive purely
@@ -78,9 +92,9 @@ export async function runLeadIntake(
     prisma.lead.update({
       where: { id: lead.id },
       data: {
-        name: intelligence.name,
-        email: intelligence.email,
-        phone: intelligence.phone,
+        name: contact.name,
+        email: contact.email,
+        phone: contact.phone,
       },
     }),
     prisma.followUpDraft.create({

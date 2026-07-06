@@ -55,6 +55,40 @@ describe("runLeadIntake", () => {
     expect(result.extraction.qualificationStatus).toBe("spam");
   });
 
+  it("prioritizes explicit contact fields over AI extraction and clears missingContact", async () => {
+    const provider = new RuleBasedProvider();
+    // rawMessage intentionally contains NO phone/email, so the AI (rule-based)
+    // provider extracts none — proving the explicit fields drive the outcome.
+    const result = await runLeadIntake(prisma, provider, {
+      rawMessage: "I'd like to book a consultation next week please",
+      source: "website_form",
+      name: "Jane Doe",
+      phone: "555-0100",
+      email: "jane@example.com",
+    });
+    createdLeadIds.push(result.lead.id);
+
+    expect(result.lead.name).toBe("Jane Doe");
+    expect(result.lead.phone).toBe("555-0100");
+    expect(result.lead.email).toBe("jane@example.com");
+    // The merged contact must feed the safety flag: the customer supplied a
+    // phone/email via labeled fields even though the free text had none.
+    expect(result.safety.missingContact).toBe(false);
+  });
+
+  it("still extracts contact from raw text when no explicit contact fields are provided", async () => {
+    const provider = new RuleBasedProvider();
+    const result = await runLeadIntake(prisma, provider, {
+      rawMessage: "My furnace died and it's freezing, please send someone today! 555-987-6543",
+      source: "sms",
+    });
+    createdLeadIds.push(result.lead.id);
+
+    // No explicit fields passed, so the AI-extracted phone still lands on the lead.
+    expect(result.lead.phone).toBe("555-987-6543");
+    expect(result.safety.missingContact).toBe(false);
+  });
+
   it("falls back to the rule-based provider when the primary provider throws", async () => {
     const failingProvider: LeadIntelligenceProvider = {
       kind: "openai",

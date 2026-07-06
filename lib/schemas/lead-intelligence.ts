@@ -31,8 +31,28 @@ export const LeadIntelligenceSchema = z.object({
 });
 export type LeadIntelligence = z.infer<typeof LeadIntelligenceSchema>;
 
+// A lenient optional string for labeled contact fields (name/email/phone).
+// Blank or whitespace-only input normalizes to `undefined` so that a form
+// submitting an empty box (e.g. `email: ""`) is treated as "not provided" and
+// the pipeline falls back to AI extraction cleanly. Placing `.optional()` after
+// `.transform()` yields an inferred type of `string | undefined`.
+const optionalContactField = z
+  .string()
+  .trim()
+  .transform((v) => (v.length > 0 ? v : undefined))
+  .optional();
+
 export const LeadIntakeInputSchema = z.object({
   rawMessage: z.string().min(1, "rawMessage is required"),
   source: LeadSourceSchema,
+  // Explicit, labeled contact fields (e.g. from a website form). All optional
+  // and backward-compatible: existing callers passing only { rawMessage, source }
+  // remain valid. Email is deliberately NOT format-validated here — a lead-capture
+  // form must never DROP a real lead because a customer fat-fingered their email.
+  // Capturing the lead matters more than a clean string; the human-review /
+  // safety-flag step catches genuinely bad data.
+  name: optionalContactField,
+  email: optionalContactField,
+  phone: optionalContactField,
 });
 export type LeadIntakeInput = z.infer<typeof LeadIntakeInputSchema>;
