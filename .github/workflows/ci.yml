@@ -1,0 +1,28 @@
+# CI runs only the checks that pass without a database.
+# The integration test suite (npm test) hits a real Supabase Postgres instance
+# and requires DATABASE_URL/DIRECT_URL, so it runs locally against each
+# developer's own Supabase instance and is intentionally excluded from CI.
+# The build step is likewise omitted because it would need a live database.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      # Generate the Prisma client so TypeScript can see its types. This reads
+      # the schema only and needs no database connection.
+      - run: npx prisma generate
+      - run: npm run typecheck
+      - run: npm run lint
