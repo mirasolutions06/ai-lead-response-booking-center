@@ -59,8 +59,8 @@ export async function runLeadIntake(
   const safety = computeSafetyFlags({ ...intelligence, ...contact });
 
   // The three writes below are independent of each other (none depends on
-  // another's result — the draft message and lead update both derive purely
-  // from `intelligence`, computed above), so they're grouped into a single
+  // another's result — the draft message derives from `intelligence` and the
+  // lead update from `contact`, both computed above), so they're grouped into a single
   // array-form transaction: either all three land, or none do. This closes
   // the partial-failure window where a crash between writes used to leave a
   // lead with an extraction but no follow-up draft (or vice versa). The
