@@ -223,3 +223,8 @@ Released under the [MIT License](LICENSE).
 ## Acknowledgments
 
 Built by Mira Solutions ([@mirasolutions06](https://github.com/mirasolutions06)). Powered by Next.js, Prisma, Supabase, and OpenAI.
+
+## Contact
+
+Built and operated by Mira Solutions, an AI engineering and automation studio.
+mira.solutions06@gmail.com
